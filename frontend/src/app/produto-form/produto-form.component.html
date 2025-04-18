@@ -1,0 +1,68 @@
+<div class="container">
+  <div class="header">
+    <h1>{{ isEditMode ? 'Edição' : 'Inclusão' }} de Produto</h1>
+  </div>
+
+  <form [formGroup]="produtoForm">
+    <div class="form-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Código</mat-label>
+        <input matInput [value]="produtoId || 'Novo'" disabled>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Descrição *</mat-label>
+        <input matInput formControlName="descricao" required>
+      </mat-form-field>
+    </div>
+
+    <div class="form-row">
+      <mat-form-field appearance="outline">
+        <mat-label>Custo</mat-label>
+        <input matInput type="number" step="0.001" formControlName="custo">
+      </mat-form-field>
+
+      <div class="file-upload-container">
+        <label for="fileInput" class="upload-label">
+          <span>{{imagemSelecionada ? imagemSelecionada.name : 'Selecione uma imagem'}}</span>
+        </label>
+        <input id="fileInput" type="file" (change)="onFileSelected($event)" 
+               accept=".png,.jpg,.jpeg" style="display: none">
+        <button color="warn" *ngIf="imagemSelecionada" (click)="removerImagem()">
+          Delete
+        </button>
+      </div>
+    </div>
+
+    <div class="precos-section">
+      <div class="precos-header">
+        <h3>Preços por Loja</h3>
+        <button mat-raised-button (click)="adicionarPreco()">
+          Adicionar
+        </button>
+      </div>
+
+      <div *ngIf="precos.length === 0" class="no-precos">
+        Nenhum preço cadastrado
+      </div>
+
+      <div *ngFor="let preco of precos; let i = index" class="preco-item">
+        <span>{{ preco.loja.descricao }}</span>
+        <span>R$ {{ preco.precoVenda | number:'1.2-2' }}</span>
+        <button color="warn" (click)="removerPreco(i)">
+          Delete
+        </button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button mat-stroked-button (click)="voltar()">Voltar</button>
+      <button mat-raised-button color="warn" (click)="excluirProduto()" *ngIf="isEditMode">
+        Excluir
+      </button>
+      <button mat-raised-button (click)="salvarProduto()">
+        Salvar
+      </button>
+    </div>
+  </form>
+</div>
