@@ -1,3 +1,1 @@
 O banco de dados é suposto a ser criado automaticamente, entretanto, caso não seja por algum erro, está incluso um backup onde basta realizar a migração que ele será criado da forma correta.
-Importante, o projeto não foi feito em minha máxima capacidade por tempo limitado e problemas com meu computador, tenho o conhecimento do bug de não apresentar a imagem e não estar salvado no produto-loja e tenho o conhecimento de formas de como solucionar estes erros, entretanto não sou capaz de fazer no momento pela falta de um computador e tempo.
-Entretanto espero ter atendido suas necessidades e estou disponível para futuros contatos, desde já agradeço.
