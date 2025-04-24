@@ -14,7 +14,10 @@ export class Produto {
 
   @Column({ type: 'bytea', nullable: true })
   imagem: Buffer;
-
-  @OneToMany(() => ProdutoLoja, (produtoLoja) => produtoLoja.produto)
+  
+  @OneToMany(() => ProdutoLoja, produtoLoja => produtoLoja.produto, {
+    cascade: true,
+    eager: true
+  })
   precos: ProdutoLoja[];
 }

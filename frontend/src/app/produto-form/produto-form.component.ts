@@ -39,7 +39,7 @@ export class ProdutoFormComponent implements OnInit {
   produtoId: number | null = null;
   precos: Preco[] = [];
   lojas: Loja[] = [];
-  tituloPagina = 'Inclusão de Produto';
+  tituloPagina = 'Inclusão / Edição de Produto';
   imagemSelecionada: File | null = null;
 
   constructor(
@@ -63,7 +63,6 @@ export class ProdutoFormComponent implements OnInit {
     this.route.params.subscribe(params => {
       if (params['id'] !== 'novo') {
         this.isEditMode = true;
-        this.tituloPagina = 'Edição de Produto';
         this.produtoId = +params['id'];
         this.carregarProduto();
       }
@@ -170,6 +169,8 @@ export class ProdutoFormComponent implements OnInit {
         precoVenda: p.precoVenda
       }))
     };
+
+    console.log(produtoData);
 
     const request = this.isEditMode && this.produtoId
       ? this.produtoService.updateProduto(this.produtoId, produtoData)

@@ -31,9 +31,4 @@ export class ProdutoController {
   remove(@Param('id') id: number): Promise<void> {
     return this.produtoService.remove(+id);
   }
-
-  @Post(':id/precos')
-  addPreco(@Param('id') id: number, @Body() createPrecoDto: CreatePrecoDto) {
-    return this.produtoService.addPreco(+id, createPrecoDto);
-  }
 }

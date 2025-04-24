@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class CreateProdutoDto {
   @IsNotEmpty()
@@ -12,6 +13,11 @@ export class CreateProdutoDto {
 
   @IsOptional()
   imagem?: Buffer;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreatePrecoDto)
+  precos: CreatePrecoDto[];
 }
 
 export class UpdateProdutoDto {
@@ -43,11 +49,10 @@ export class FilterProdutoDto {
 }
 
 export class CreatePrecoDto {
-  @IsNotEmpty()
   @IsNumber()
   lojaId: number;
 
-  @IsNotEmpty()
   @IsNumber()
+  @Min(0)
   precoVenda: number;
 }

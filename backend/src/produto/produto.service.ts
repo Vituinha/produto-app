@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Produto } from './produto.entity';
@@ -63,45 +63,152 @@ export class ProdutoService {
 
   async create(createProdutoDto: CreateProdutoDto): Promise<Produto> {
     const produto = this.produtoRepository.create(createProdutoDto);
-    return this.produtoRepository.save(produto);
+  
+    const precosValidos = (createProdutoDto.precos || []).filter(
+      preco => preco.lojaId != null && preco.precoVenda != null
+    );
+  
+    produto.precos = precosValidos.map(preco => {
+      const precoEntity = this.produtoLojaRepository.create({
+        precoVenda: preco.precoVenda,
+        loja: { id: preco.lojaId }
+      });
+      return precoEntity;
+    });
+    const produtoSalvo = await this.produtoRepository.save(produto);
+  
+    if (!produtoSalvo) {
+      throw new NotFoundException('Produto não encontrado após criação');
+    }
+  
+    return produtoSalvo;
   }
 
-  async update(id: number, updateProdutoDto: UpdateProdutoDto): Promise<Produto> {
-    const produto = await this.findOne(id);
-    this.produtoRepository.merge(produto, updateProdutoDto);
-    return this.produtoRepository.save(produto);
+  async update(id: number, updateProdutoDto: UpdateProdutoDto & { precos?: CreatePrecoDto[] }): Promise<Produto> {
+    const queryRunner = this.produtoRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      if (!id) {
+          throw new BadRequestException('ID do produto é obrigatório');
+      }
+
+      const produto = await queryRunner.manager.findOne(Produto, {
+          where: { id },
+          relations: ['precos', 'precos.loja']
+      });
+
+      if (!produto) {
+          throw new NotFoundException(`Produto com ID ${id} não encontrado`);
+      }
+
+      if (updateProdutoDto.descricao) produto.descricao = updateProdutoDto.descricao;
+      if (updateProdutoDto.custo !== undefined) produto.custo = updateProdutoDto.custo;
+      if (updateProdutoDto.imagem !== undefined) produto.imagem = updateProdutoDto.imagem;
+
+      if (updateProdutoDto.precos !== undefined) {
+          const precosValidos = (updateProdutoDto.precos || []).filter(
+              preco => preco?.lojaId && preco?.precoVenda !== undefined
+          );
+
+          const lojasAtuais = new Set(precosValidos.map(p => p.lojaId));
+
+          const precosParaRemover = produto.precos.filter(
+              preco => preco?.loja?.id && !lojasAtuais.has(preco.loja.id)
+          );
+
+          if (precosParaRemover.length > 0) {
+              await queryRunner.manager.remove(ProdutoLoja, precosParaRemover);
+          }
+
+          for (const precoDto of precosValidos) {
+            if (!precoDto?.lojaId) continue;
+        
+            const precoExistente = produto.precos.find(
+                p => p?.loja?.id === precoDto.lojaId
+            );
+        
+            if (precoExistente) {
+                precoExistente.precoVenda = precoDto.precoVenda;
+                await queryRunner.manager.save(ProdutoLoja, precoExistente);
+            } else {
+                const novoPreco = queryRunner.manager.create(ProdutoLoja, {
+                    precoVenda: precoDto.precoVenda,
+                    loja: { id: precoDto.lojaId },
+                    produto: produto
+                });
+                
+                const precoSalvo = await queryRunner.manager.save(ProdutoLoja, novoPreco);
+                
+                produto.precos.push(precoSalvo);
+            }
+        }
+      }
+
+      await queryRunner.manager.save(Produto, produto);
+      await queryRunner.commitTransaction();
+
+      const produtoAtualizado = await this.produtoRepository.findOne({
+          where: { id },
+          relations: ['precos', 'precos.loja']
+      });
+      if (!produtoAtualizado) {
+          throw new NotFoundException('Produto não encontrado após atualização');
+      }
+      return produtoAtualizado;
+    } catch (error) {
+        await queryRunner.rollbackTransaction();
+        
+        if (error instanceof HttpException) {
+            throw error;
+        }
+        
+        throw new InternalServerErrorException({
+            message: 'Erro ao atualizar produto',
+            detail: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    } finally {
+        await queryRunner.release();
+    }
   }
 
   async remove(id: number): Promise<void> {
-    const produto = await this.findOne(id);
-    await this.produtoRepository.remove(produto);
-  }
+    const queryRunner = this.produtoRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-  async addPreco(produtoId: number, createPrecoDto: CreatePrecoDto): Promise<ProdutoLoja> {
-    const produto = await this.findOne(produtoId);
-    const loja = await this.lojaRepository.findOne({ where: { id: createPrecoDto.lojaId } });
+    try {
+        const produto = await queryRunner.manager.findOne(Produto, {
+            where: { id },
+            relations: ['precos']
+        });
 
-    if (!loja) {
-      throw new NotFoundException(`Loja com ID ${createPrecoDto.lojaId} não encontrada`);
+        if (!produto) {
+            throw new NotFoundException(`Produto com ID ${id} não encontrado`);
+        }
+
+        if (produto.precos && produto.precos.length > 0) {
+            await queryRunner.manager.remove(ProdutoLoja, produto.precos);
+        }
+
+        await queryRunner.manager.remove(Produto, produto);
+
+        await queryRunner.commitTransaction();
+    } catch (error) {
+        await queryRunner.rollbackTransaction();
+        
+        if (error instanceof NotFoundException) {
+            throw error;
+        }
+        
+        throw new InternalServerErrorException({
+            message: 'Erro ao excluir produto',
+            detail: error.message
+        });
+    } finally {
+        await queryRunner.release();
     }
-
-    const existingPreco = await this.produtoLojaRepository.findOne({
-      where: {
-        produto: { id: produtoId },
-        loja: { id: createPrecoDto.lojaId },
-      },
-    });
-
-    if (existingPreco) {
-      throw new Error('Já existe um preço cadastrado para esta loja');
-    }
-
-    const preco = this.produtoLojaRepository.create({
-      produto,
-      loja,
-      precoVenda: createPrecoDto.precoVenda,
-    });
-
-    return this.produtoLojaRepository.save(preco);
-  }
+}
 }
